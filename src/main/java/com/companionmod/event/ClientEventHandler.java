@@ -8,6 +8,7 @@ import com.companionmod.gui.CompanionManagerScreen;
 import com.companionmod.gui.CompanionScreen;
 import com.companionmod.network.PacketHandler;
 import com.companionmod.network.RiderInputPacket;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -17,7 +18,6 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -26,6 +26,7 @@ import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix4f;
+import org.lwjgl.glfw.GLFW;
 import java.util.List;
 
 @Mod.EventBusSubscriber(modid = CompanionMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
@@ -33,14 +34,13 @@ public class ClientEventHandler {
 
     private static final float RANGE = 6.0f;
 
-    // ── Client tick: key handling + rider input ───────────────────────────────
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
-        // Open companion manager on ; key press (no screen must be open)
+        // Open companion manager on ; key
         if (mc.screen == null && CompanionKeys.OPEN_MANAGER.consumeClick()) {
             mc.setScreen(new CompanionManagerScreen());
         }
@@ -48,11 +48,12 @@ public class ClientEventHandler {
         // Send rider input while mounted on a companion
         if (mc.player.isPassenger() && mc.player.getVehicle() instanceof LivingEntity vehicle) {
             if (ClientFriendshipStore.isFriend(vehicle.getUUID())) {
+                long win = mc.getWindow().getWindow();
                 float fwd = 0, str = 0;
-                if (mc.options.keyForward.isDown()) fwd += 1.0f;
-                if (mc.options.keyBack.isDown())    fwd -= 1.0f;
-                if (mc.options.keyLeft.isDown())    str -= 1.0f;
-                if (mc.options.keyRight.isDown())   str += 1.0f;
+                if (InputConstants.isKeyDown(win, GLFW.GLFW_KEY_W)) fwd += 1.0f;
+                if (InputConstants.isKeyDown(win, GLFW.GLFW_KEY_S)) fwd -= 1.0f;
+                if (InputConstants.isKeyDown(win, GLFW.GLFW_KEY_A)) str -= 1.0f;
+                if (InputConstants.isKeyDown(win, GLFW.GLFW_KEY_D)) str += 1.0f;
                 PacketHandler.sendToServer(new RiderInputPacket(
                         vehicle.getId(), fwd, str,
                         mc.player.getYRot(), mc.player.getXRot()));
@@ -60,7 +61,6 @@ public class ClientEventHandler {
         }
     }
 
-    // ── Right-click mob → open companion GUI ─────────────────────────────────
     @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
         if (!(event.getTarget() instanceof LivingEntity living)) return;
@@ -76,7 +76,6 @@ public class ClientEventHandler {
         event.setCancellationResult(InteractionResult.SUCCESS);
     }
 
-    // ── Floating bubble above nearby mobs ────────────────────────────────────
     @SubscribeEvent
     public static void onRenderLevelStage(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) return;
